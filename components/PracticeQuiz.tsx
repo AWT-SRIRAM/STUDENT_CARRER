@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle2, XCircle, RefreshCw, Sparkles, Award, AlertCircle } from 'lucide-react';
+import { getSupabase } from '@/lib/supabase/client';
 
 type QuizQuestion = {
   question: string;
@@ -37,22 +38,35 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
     setFinished(false);
 
     try {
+      const supabase = getSupabase();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setError('Sign in to use practice quizzes.');
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ topics, count: 5 }),
+      });
+
+      if (res.status === 401) {
+        setError('Sign in to use practice quizzes.');
+        return;
+      }
+      if (res.status === 429) {
+        setError('Slow down — try again in a minute.');
+        return;
+      }
+
       const data = await res.json();
-if (res.status === 401) {
-  setError('Sign in to use practice quizzes.');
-  return;
-}
-if (res.status === 429) {
-  setError('Slow down — try again in a minute.');
-  return;
-}
-if (!data.questions || data.questions.length === 0) {
-  setError("Couldn't generate quiz right now. Try again in a moment.");
-} else {
-  setQuestions(data.questions);
-  setSource(data.source || 'none');
-}
-      const data = await res.json();
+
       if (!data.questions || data.questions.length === 0) {
         setError("Couldn't generate quiz right now. Try again in a moment.");
       } else {
@@ -60,7 +74,7 @@ if (!data.questions || data.questions.length === 0) {
         setSource(data.source || 'none');
       }
     } catch {
-      setError("Network error. Try again.");
+      setError('Network error. Try again.');
     } finally {
       setLoading(false);
     }
