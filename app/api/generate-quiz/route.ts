@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 type QuizQuestion = {
   question: string;
@@ -11,6 +12,39 @@ type QuizResponse = {
   questions: QuizQuestion[];
   source: 'groq' | 'gemini' | 'none';
 };
+
+// Simple in-memory rate limiter. Resets on deploy / cold start.
+// Good enough to stop casual abuse; not bulletproof.
+const WINDOW_MS = 60_000;      // 1 minute
+const MAX_PER_WINDOW = 3;      // 3 quiz generations per minute per user
+const buckets = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(key: string): boolean {
+  const now = Date.now();
+  const bucket = buckets.get(key);
+  if (!bucket || now > bucket.resetAt) {
+    buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= MAX_PER_WINDOW) return false;
+  bucket.count++;
+  return true;
+}
+
+async function getCallerId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get('authorization');
+  const token = authHeader?.replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const client = createClient(url, anon, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false },
+  });
+  const { data } = await client.auth.getUser();
+  return data.user?.id ?? null;
+}
 
 function buildPrompt(topics: string[], count: number): string {
   return `You are an expert TNPSC Group IV exam question setter.
@@ -43,7 +77,6 @@ Return ONLY valid JSON in this exact format, no markdown, no code fences, no ext
 
 function parseQuizJSON(raw: string): QuizQuestion[] | null {
   try {
-    // Strip markdown fences if present
     let cleaned = raw.trim();
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
     const data = JSON.parse(cleaned);
@@ -81,7 +114,7 @@ async function tryGroq(prompt: string): Promise<QuizQuestion[] | null> {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${key}`,
+        Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -126,7 +159,7 @@ async function tryGemini(prompt: string): Promise<QuizQuestion[] | null> {
             responseMimeType: 'application/json',
           },
         }),
-      }
+      },
     );
     if (!res.ok) {
       console.error('Gemini failed:', res.status, await res.text().catch(() => ''));
@@ -144,9 +177,25 @@ async function tryGemini(prompt: string): Promise<QuizQuestion[] | null> {
 
 export async function POST(request: Request) {
   try {
+    const callerId = await getCallerId(request);
+    if (!callerId) {
+      return NextResponse.json(
+        { questions: [], source: 'none', error: 'Sign in required.' } as QuizResponse,
+        { status: 401 },
+      );
+    }
+
+    if (!rateLimit(callerId)) {
+      return NextResponse.json(
+        { questions: [], source: 'none', error: 'Too many requests. Wait a minute.' } as QuizResponse,
+        { status: 429 },
+      );
+    }
+
     const body = await request.json();
     const topics: string[] = Array.isArray(body.topics) ? body.topics.slice(0, 10) : [];
-    const count = typeof body.count === 'number' && body.count >= 3 && body.count <= 10 ? body.count : 5;
+    const count =
+      typeof body.count === 'number' && body.count >= 3 && body.count <= 10 ? body.count : 5;
 
     if (topics.length === 0) {
       return NextResponse.json({ questions: [], source: 'none' } as QuizResponse, { status: 400 });
@@ -154,11 +203,9 @@ export async function POST(request: Request) {
 
     const prompt = buildPrompt(topics, count);
 
-    // Try Groq first (fast)
     let questions = await tryGroq(prompt);
     let source: 'groq' | 'gemini' | 'none' = 'groq';
 
-    // Fallback to Gemini
     if (!questions) {
       console.log('Groq failed, falling back to Gemini');
       questions = await tryGemini(prompt);
@@ -166,12 +213,18 @@ export async function POST(request: Request) {
     }
 
     if (!questions) {
-      return NextResponse.json({ questions: [], source: 'none' } as QuizResponse, { status: 503 });
+      return NextResponse.json(
+        { questions: [], source: 'none' } as QuizResponse,
+        { status: 503 },
+      );
     }
 
     return NextResponse.json({ questions, source } as QuizResponse);
   } catch (err) {
     console.error('Quiz route error:', err);
-    return NextResponse.json({ questions: [], source: 'none' } as QuizResponse, { status: 500 });
+    return NextResponse.json(
+      { questions: [], source: 'none' } as QuizResponse,
+      { status: 500 },
+    );
   }
 }

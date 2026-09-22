@@ -37,11 +37,21 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
     setFinished(false);
 
     try {
-      const res = await fetch('/api/generate-quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topics, count: 5 }),
-      });
+      const data = await res.json();
+if (res.status === 401) {
+  setError('Sign in to use practice quizzes.');
+  return;
+}
+if (res.status === 429) {
+  setError('Slow down — try again in a minute.');
+  return;
+}
+if (!data.questions || data.questions.length === 0) {
+  setError("Couldn't generate quiz right now. Try again in a moment.");
+} else {
+  setQuestions(data.questions);
+  setSource(data.source || 'none');
+}
       const data = await res.json();
       if (!data.questions || data.questions.length === 0) {
         setError("Couldn't generate quiz right now. Try again in a moment.");

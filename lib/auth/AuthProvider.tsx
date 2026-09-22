@@ -12,13 +12,14 @@ import type { Session, User } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabase/client';
 import { usernameToEmail } from './username';
 
-export type Profile = { id: string; username: string };
+export type Profile = { id: string; username: string; role: 'user' | 'admin' };
 
 type AuthValue = {
   ready: boolean;
   session: Session | null;
   user: User | null;
   profile: Profile | null;
+  isAdmin: boolean;
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   reloadProfile: () => Promise<void>;
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username')
+      .select('id, username, role')
       .eq('id', userId)
       .maybeSingle();
     if (!error) setProfile((data as Profile) ?? null);
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       user: session?.user ?? null,
       profile,
+      isAdmin: profile?.role === 'admin',
       signIn,
       signOut,
       reloadProfile,
