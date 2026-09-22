@@ -1,0 +1,40 @@
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  return NextResponse.json({
+    subjects: [
+      { id: 'polity', unitIds: ['A4'], name: 'Indian Polity',
+        beginner: { name: 'Polity Slip Test', description: 'Polity questions', url: 'https://www.minnalvegakanitham.in/2020/08/tnpsc-tet-tneb-sipc-slip-test-polity.html' },
+        advanced: { name: 'Polity Test 2', description: 'Topic-wise test', url: 'https://www.minnalvegakanitham.in/2025/06/p-test-2.html' },
+        master: { name: 'History Box Questions', description: 'Detailed polity-history', url: 'https://gk.minnalvegakanitham.in/2020/08/6-new-book-history-box-questions-slip.html' } },
+      { id: 'economy', unitIds: ['A5'], name: 'Indian Economy',
+        beginner: { name: 'Economy Study Material', description: 'Full economy Q&A', url: 'https://www.minnalvegakanitham.in/2020/07/tnpsc-g4-vao-study-materials-questions.html' },
+        advanced: { name: 'Economy Practice', description: 'Topic-wise practice', url: 'https://www.minnalvegakanitham.in/2020/07/tnpsc-g4-vao-study-materials-questions.html' },
+        master: { name: 'Economy PYQs', description: 'Past year', url: 'https://www.minnalvegakanitham.in/2020/07/tnpsc-g4-vao-study-materials-questions.html' } },
+      { id: 'tn-history', unitIds: ['A6'], name: 'Tamil Nadu History',
+        beginner: { name: 'History Slip Test', description: '6th New Book', url: 'https://gk.minnalvegakanitham.in/2020/08/6-new-book-history-box-questions-slip.html' },
+        advanced: { name: 'Box Questions', description: 'Detailed history', url: 'https://gk.minnalvegakanitham.in/2020/08/6-new-book-history-box-questions-slip.html' },
+        master: { name: 'TN History PYQs', description: 'Past year', url: 'https://gk.minnalvegakanitham.in/2020/08/6-new-book-history-box-questions-slip.html' } },
+      { id: 'history', unitIds: ['A3'], name: 'Indian History',
+        beginner: { name: 'History Slip Test', description: '6th New Book', url: 'https://gk.minnalvegakanitham.in/2020/08/6-new-book-history-box-questions-slip.html' },
+        advanced: { name: 'History Practice', description: 'Topic-wise', url: 'https://gk.minnalvegakanitham.in/2020/08/6-new-book-history-box-questions-slip.html' },
+        master: { name: 'History PYQs', description: 'Past year', url: 'https://gk.minnalvegakanitham.in/2020/08/6-new-book-history-box-questions-slip.html' } },
+      { id: 'geography', unitIds: ['A2'], name: 'Geography',
+        beginner: { name: 'Geography Free Test', description: '2019 & 2020 questions', url: 'https://gk.minnalvegakanitham.in/2020/12/free-test-1.html' },
+        advanced: { name: 'Geography Practice', description: 'Topic-wise', url: 'https://gk.minnalvegakanitham.in/2020/12/free-test-1.html' },
+        master: { name: 'Geography PYQs', description: 'Past year', url: 'https://gk.minnalvegakanitham.in/2020/12/free-test-1.html' } },
+      { id: 'science', unitIds: ['A1'], name: 'General Science',
+        beginner: { name: 'Science Unit 1,2', description: '6th Science', url: 'https://www.minnalvegakanitham.in/2024/10/6th-science-unit-1-2.html' },
+        advanced: { name: 'Science Practice', description: 'Topic-wise', url: 'https://www.minnalvegakanitham.in/2024/10/6th-science-unit-1-2.html' },
+        master: { name: 'Science PYQs', description: 'Past year', url: 'https://www.minnalvegakanitham.in/2024/10/6th-science-unit-1-2.html' } },
+      { id: 'aptitude', unitIds: ['B1', 'B2'], name: 'Aptitude & Reasoning',
+        beginner: { name: 'Ratio & Proportion', description: 'Practice problems', url: 'https://www.minnalvegakanitham.in/2025/09/questions-1.html' },
+        advanced: { name: 'Simple Interest', description: '100+ questions', url: 'https://www.minnalvegakanitham.in/2026/05/simple-interest-type-7-2.html' },
+        master: { name: 'Time and Work', description: 'Practice set', url: 'https://www.minnalvegakanitham.in/2026/02/8th-new-book-time-and-work.html' } },
+      { id: 'tamil', unitIds: ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7'], name: 'Tamil',
+        beginner: { name: 'Tamil Unit 1', description: '6th Tamil questions', url: 'https://www.minnalvegakanitham.in/2025/08/6th-new-tamil-unit-1-book-back.html' },
+        advanced: { name: 'Thirukkural', description: 'Top 50 questions', url: 'https://www.minnalvegakanitham.in/2026/05/6th-tirukural.html' },
+        master: { name: 'Tamil PYQs', description: 'Past year', url: 'https://www.minnalvegakanitham.in/2025/08/6th-new-tamil-unit-1-book-back.html' } },
+    ],
+  });
+}
