@@ -16,7 +16,8 @@ export function validateUsername(raw: unknown): UsernameResult {
     return { ok: false, error: `Username must be ${USERNAME_MAX} characters or less.` };
   if (!USERNAME_REGEX.test(value))
     return { ok: false, error: 'Username can only contain letters and numbers.' };
-  return { ok: true, value: value.toLowerCase() };
+  // Preserve the case the user typed. Uniqueness is enforced case-insensitively in the DB.
+  return { ok: true, value };
 }
 
 export function usernameToEmail(username: string): string {

@@ -1,12 +1,14 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { validateUsername } from '@/lib/auth/username';
+import { writeGuest } from '@/lib/auth/guest';
+import { Eye, EyeOff, AlertCircle, CheckCircle2, UserPlus, LogIn, UserCircle } from 'lucide-react';
 
-type Tab = 'signin' | 'signup' | 'recover';
+type Tab = 'signin' | 'signup' | 'guest';
 
 function AuthInner() {
   const router = useRouter();
@@ -19,41 +21,35 @@ function AuthInner() {
   // Sign in
   const [siUsername, setSiUsername] = useState('');
   const [siPassword, setSiPassword] = useState('');
+  const [siShowPw, setSiShowPw] = useState(false);
 
   // Sign up
   const [suUsername, setSuUsername] = useState('');
   const [suPassword, setSuPassword] = useState('');
   const [suConfirm, setSuConfirm] = useState('');
-  const [suStep, setSuStep] = useState<'form' | 'recovery'>('form');
-  const [suRecoveryCode, setSuRecoveryCode] = useState('');
-  const [suSaved, setSuSaved] = useState(false);
+  const [suShowPw, setSuShowPw] = useState(false);
 
-  // Recover
-  const [rcUsername, setRcUsername] = useState('');
-  const [rcCode, setRcCode] = useState('');
-  const [rcNewPassword, setRcNewPassword] = useState('');
-  const [rcNewCode, setRcNewCode] = useState<string | null>(null);
+  // Guest
+  const [gUsername, setGUsername] = useState('');
+  const [gPassword, setGPassword] = useState('');
+  const [gConfirm, setGConfirm] = useState('');
+  const [gShowPw, setGShowPw] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   function switchTab(next: Tab) {
     setTab(next);
     setError(null);
-    if (next !== 'signup') {
-      setSuStep('form');
-      setSuRecoveryCode('');
-      setSuSaved(false);
-    }
-    if (next !== 'recover') {
-      setRcNewCode(null);
-    }
+    setInfo(null);
     router.replace(`/auth?tab=${next}`, { scroll: false });
   }
 
   async function onSignIn(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
 
     const u = validateUsername(siUsername);
     if (!u.ok) return setError(u.error);
@@ -62,8 +58,27 @@ function AuthInner() {
     try {
       await signIn(u.value, siPassword);
       router.replace('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed.');
+    } catch {
+      try {
+        const res = await fetch('/api/auth/check-username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u.value }),
+        });
+        const json = (await res.json()) as { exists?: boolean };
+
+        if (!json.exists) {
+          setSuUsername(u.value);
+          setSuPassword('');
+          setSuConfirm('');
+          switchTab('signup');
+          setInfo('That username is new. Create your account below.');
+        } else {
+          setError('Incorrect password. Try again.');
+        }
+      } catch {
+        setError('Sign in failed. Try again.');
+      }
       setBusy(false);
     }
   }
@@ -71,6 +86,7 @@ function AuthInner() {
   async function onSignUp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
 
     const u = validateUsername(suUsername);
     if (!u.ok) return setError(u.error);
@@ -84,90 +100,102 @@ function AuthInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: u.value, password: suPassword }),
       });
-      const json = (await res.json()) as { recoveryCode?: string; error?: string };
-      if (!res.ok || !json.recoveryCode) {
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
         setError(json.error ?? 'Sign up failed.');
+        setBusy(false);
         return;
       }
-      setSuRecoveryCode(json.recoveryCode);
-      setSuStep('recovery');
+      await signIn(u.value, suPassword);
+      router.replace('/');
     } catch {
       setError('Network error. Try again.');
-    } finally {
       setBusy(false);
     }
   }
 
-  async function onSignUpContinue() {
-    setBusy(true);
-    try {
-      await signIn(suUsername.toLowerCase(), suPassword);
-      router.replace('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed.');
-      setBusy(false);
-    }
-  }
-
-  async function onRecover(e: React.FormEvent) {
+  async function onGuest(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
 
-    const u = validateUsername(rcUsername);
+    const u = validateUsername(gUsername);
     if (!u.ok) return setError(u.error);
-    if (rcNewPassword.length < 8) return setError('New password must be at least 8 characters.');
+    if (gPassword.length < 4) return setError('Guest password must be at least 4 characters.');
+    if (gPassword !== gConfirm) return setError('Passwords do not match.');
 
     setBusy(true);
     try {
-      const res = await fetch('/api/auth/recover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: u.value,
-          recoveryCode: rcCode,
-          newPassword: rcNewPassword,
-        }),
-      });
-      const json = (await res.json()) as { recoveryCode?: string; error?: string };
-      if (!res.ok) {
-        setError(json.error ?? 'Recovery failed.');
-        return;
-      }
-      setRcNewCode(json.recoveryCode ?? null);
+      await writeGuest(u.value, gPassword);
+      router.replace('/');
     } catch {
-      setError('Network error. Try again.');
-    } finally {
+      setError('Could not start guest session.');
       setBusy(false);
     }
   }
 
   const inputClass =
-    'mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none';
-  const labelClass = 'block text-sm font-medium text-gray-700';
+    'mt-1 w-full rounded-xl border bg-white/[0.05] border-white/[0.12] text-white placeholder-gray-500 focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30 px-3 py-2.5 text-sm transition';
+  const labelClass = 'block text-xs font-semibold text-gray-300 uppercase tracking-wider';
 
   return (
     <div className="space-y-5">
       {/* Tab bar */}
-      <div className="flex rounded-lg bg-gray-100 p-1 text-xs font-medium">
-        {(['signin', 'signup', 'recover'] as Tab[]).map((t) => (
+      <div className="flex rounded-xl bg-white/[0.05] p-1 text-sm font-medium border border-white/[0.08]">
+        {(['signin', 'signup', 'guest'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => switchTab(t)}
-            className={`flex-1 rounded-md py-1.5 transition ${
-              tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 transition text-xs sm:text-sm ${
+              tab === t
+                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30'
+                : 'text-gray-400 hover:text-white'
             }`}
           >
-            {t === 'signin' ? 'Sign in' : t === 'signup' ? 'Sign up' : 'Recover'}
+            {t === 'signin' && <LogIn className="w-4 h-4" />}
+            {t === 'signup' && <UserPlus className="w-4 h-4" />}
+            {t === 'guest' && <UserCircle className="w-4 h-4" />}
+            {t === 'signin' ? 'Sign in' : t === 'signup' ? 'Sign up' : 'Guest'}
           </button>
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <AnimatePresence mode="wait">
+        {info && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="flex items-start gap-2 rounded-xl border border-blue-500/40 bg-blue-500/15 px-3 py-2.5 text-xs text-blue-100"
+          >
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-blue-300" />
+            <span>{info}</span>
+          </motion.div>
+        )}
+
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/15 px-3 py-2.5 text-xs text-red-100"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-300" />
+            <span>{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* SIGN IN */}
       {tab === 'signin' && (
-        <form onSubmit={onSignIn} className="space-y-4">
+        <motion.form
+          key="signin"
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          onSubmit={onSignIn}
+          className="space-y-4"
+        >
           <div>
             <label className={labelClass} htmlFor="si-username">Username</label>
             <input
@@ -176,32 +204,50 @@ function AuthInner() {
               value={siUsername}
               onChange={(e) => setSiUsername(e.target.value)}
               className={inputClass}
+              placeholder="your username"
             />
           </div>
           <div>
             <label className={labelClass} htmlFor="si-password">Password</label>
-            <input
-              id="si-password"
-              type="password"
-              autoComplete="current-password"
-              value={siPassword}
-              onChange={(e) => setSiPassword(e.target.value)}
-              className={inputClass}
-            />
+            <div className="relative">
+              <input
+                id="si-password"
+                type={siShowPw ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={siPassword}
+                onChange={(e) => setSiPassword(e.target.value)}
+                className={`${inputClass} pr-10`}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setSiShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-200"
+                tabIndex={-1}
+              >
+                {siShowPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded bg-gray-900 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 hover:opacity-90 disabled:opacity-50 transition"
           >
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
-        </form>
+        </motion.form>
       )}
 
       {/* SIGN UP */}
-      {tab === 'signup' && suStep === 'form' && (
-        <form onSubmit={onSignUp} className="space-y-4">
+      {tab === 'signup' && (
+        <motion.form
+          key="signup"
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          onSubmit={onSignUp}
+          className="space-y-4"
+        >
           <div>
             <label className={labelClass} htmlFor="su-username">Username</label>
             <input
@@ -210,165 +256,133 @@ function AuthInner() {
               value={suUsername}
               onChange={(e) => setSuUsername(e.target.value)}
               className={inputClass}
+              placeholder="e.g. Sriram007"
             />
-            <p className="mt-1 text-xs text-gray-500">Letters and numbers, 3–20 characters.</p>
+            <p className="mt-1 text-[11px] text-gray-500">
+              Letters and numbers, 3–20 characters. Shown exactly as you type it.
+            </p>
           </div>
           <div>
             <label className={labelClass} htmlFor="su-password">Password</label>
-            <input
-              id="su-password"
-              type="password"
-              autoComplete="new-password"
-              value={suPassword}
-              onChange={(e) => setSuPassword(e.target.value)}
-              className={inputClass}
-            />
+            <div className="relative">
+              <input
+                id="su-password"
+                type={suShowPw ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={suPassword}
+                onChange={(e) => setSuPassword(e.target.value)}
+                className={`${inputClass} pr-10`}
+                placeholder="At least 8 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setSuShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-200"
+                tabIndex={-1}
+              >
+                {suShowPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
           <div>
             <label className={labelClass} htmlFor="su-confirm">Confirm password</label>
             <input
               id="su-confirm"
-              type="password"
+              type={suShowPw ? 'text' : 'password'}
               autoComplete="new-password"
               value={suConfirm}
               onChange={(e) => setSuConfirm(e.target.value)}
               className={inputClass}
+              placeholder="Repeat password"
             />
+          </div>
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            There&apos;s no password reset. Save your password somewhere safe.
           </div>
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded bg-gray-900 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 hover:opacity-90 disabled:opacity-50 transition"
           >
             {busy ? 'Creating…' : 'Create account'}
           </button>
-        </form>
+        </motion.form>
       )}
 
-      {tab === 'signup' && suStep === 'recovery' && (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Save your recovery code</h2>
-          <p className="text-sm text-gray-600">
-            This is the <strong>only time</strong> this code will be shown. Store it somewhere safe.
-          </p>
-          <div className="rounded border border-gray-300 bg-gray-50 p-4 text-center font-mono text-base tracking-wider">
-            {suRecoveryCode}
+      {/* GUEST */}
+      {tab === 'guest' && (
+        <motion.form
+          key="guest"
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          onSubmit={onGuest}
+          className="space-y-4"
+        >
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-[11px] text-blue-100">
+            Guest mode keeps everything <strong>on this device only</strong>. No account, no sync.
+            Pick any username and password to continue.
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(suRecoveryCode);
-              } catch {
-                const ta = document.createElement('textarea');
-                ta.value = suRecoveryCode;
-                ta.style.position = 'fixed';
-                ta.style.opacity = '0';
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-              }
-            }}
-            className="w-full rounded border border-gray-300 py-2 text-sm"
-          >
-            Copy to clipboard
-          </button>
-          <label className="flex items-start gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={suSaved}
-              onChange={(e) => setSuSaved(e.target.checked)}
-              className="mt-0.5"
-            />
-            I&apos;ve saved this code somewhere safe.
-          </label>
-          <button
-            type="button"
-            disabled={!suSaved || busy}
-            onClick={onSignUpContinue}
-            className="w-full rounded bg-gray-900 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {busy ? 'Signing in…' : 'Continue'}
-          </button>
-        </div>
-      )}
-
-      {/* RECOVER */}
-      {tab === 'recover' && !rcNewCode && (
-        <form onSubmit={onRecover} className="space-y-4">
           <div>
-            <label className={labelClass} htmlFor="rc-username">Username</label>
+            <label className={labelClass} htmlFor="g-username">Guest username</label>
             <input
-              id="rc-username"
-              value={rcUsername}
-              onChange={(e) => setRcUsername(e.target.value)}
+              id="g-username"
+              autoComplete="off"
+              value={gUsername}
+              onChange={(e) => setGUsername(e.target.value)}
               className={inputClass}
+              placeholder="e.g. Mathi"
             />
           </div>
           <div>
-            <label className={labelClass} htmlFor="rc-code">Recovery code</label>
-            <input
-              id="rc-code"
-              value={rcCode}
-              onChange={(e) => setRcCode(e.target.value)}
-              placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"
-              className={`${inputClass} font-mono`}
-            />
+            <label className={labelClass} htmlFor="g-password">Guest password</label>
+            <div className="relative">
+              <input
+                id="g-password"
+                type={gShowPw ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={gPassword}
+                onChange={(e) => setGPassword(e.target.value)}
+                className={`${inputClass} pr-10`}
+                placeholder="At least 4 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setGShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-200"
+                tabIndex={-1}
+              >
+                {gShowPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
           <div>
-            <label className={labelClass} htmlFor="rc-new">New password</label>
+            <label className={labelClass} htmlFor="g-confirm">Confirm password</label>
             <input
-              id="rc-new"
-              type="password"
+              id="g-confirm"
+              type={gShowPw ? 'text' : 'password'}
               autoComplete="new-password"
-              value={rcNewPassword}
-              onChange={(e) => setRcNewPassword(e.target.value)}
+              value={gConfirm}
+              onChange={(e) => setGConfirm(e.target.value)}
               className={inputClass}
+              placeholder="Repeat password"
             />
           </div>
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded bg-gray-900 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 hover:opacity-90 disabled:opacity-50 transition"
           >
-            {busy ? 'Resetting…' : 'Reset password'}
+            {busy ? 'Starting…' : 'Continue as guest'}
           </button>
-        </form>
+        </motion.form>
       )}
-
-      {tab === 'recover' && rcNewCode && (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Password reset</h2>
-          <p className="text-sm text-gray-600">
-            Your old recovery code is now invalid. Save this new one — it won&apos;t be shown again.
-          </p>
-          <div className="rounded border border-gray-300 bg-gray-50 p-4 text-center font-mono text-base tracking-wider">
-            {rcNewCode}
-          </div>
-          <button
-            type="button"
-            onClick={() => router.replace('/auth?tab=signin')}
-            className="w-full rounded bg-gray-900 py-2 text-sm font-medium text-white"
-          >
-            Go to sign in
-          </button>
-        </div>
-      )}
-
-      {/* Guest */}
-      <div className="border-t border-gray-200 pt-3 text-center">
-        <Link href="/" className="text-xs text-gray-500 underline">
-          Continue as guest
-        </Link>
-      </div>
     </div>
   );
 }
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-gray-500">Loading…</div>}>
+    <Suspense fallback={<div className="text-sm text-gray-500 text-center py-4">Loading…</div>}>
       <AuthInner />
     </Suspense>
   );

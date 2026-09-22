@@ -23,10 +23,11 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
+  // Case-insensitive duplicate check.
   const { data: existing } = await admin
     .from('profiles')
     .select('id')
-    .eq('username', username)
+    .ilike('username', username)
     .maybeSingle();
   if (existing) {
     return NextResponse.json({ error: 'That username is taken.' }, { status: 409 });
@@ -47,12 +48,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const recoveryCode = generateRecoveryCode();
-  const recoveryCodeHash = hashRecoveryCode(recoveryCode);
+  // Recovery code still generated silently (column is not-null). Never shown.
+  const recoveryCodeHash = hashRecoveryCode(generateRecoveryCode());
 
   const { error: profileErr } = await admin.from('profiles').insert({
     id: created.user.id,
-    username,
+    username, // ← original case preserved
     recovery_code_hash: recoveryCodeHash,
   });
 
@@ -61,5 +62,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Could not create profile.' }, { status: 500 });
   }
 
-  return NextResponse.json({ username, recoveryCode });
+  return NextResponse.json({ ok: true, username });
 }

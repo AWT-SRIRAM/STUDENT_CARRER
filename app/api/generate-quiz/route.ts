@@ -118,7 +118,7 @@ async function tryGroq(prompt: string): Promise<QuizQuestion[] | null> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: 'You return only valid JSON. No markdown, no prose.' },
           { role: 'user', content: prompt },
@@ -147,7 +147,7 @@ async function tryGemini(prompt: string): Promise<QuizQuestion[] | null> {
   if (!key) return null;
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

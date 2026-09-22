@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { syllabusData } from '@/data/syllabus';
 import AnimatedNumber from '@/components/AnimatedNumber';
@@ -9,11 +10,14 @@ import Practice from '@/components/Practice';
 import PastPapers from '@/components/PastPapers';
 import PracticeQuiz from '@/components/PracticeQuiz';
 import { todayISO, addDays, daysBetween, formatExamDate, safeParse } from '@/lib/utils';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { readGuest, clearGuest, isGuestUnlocked, unlockGuest, sha256 } from '@/lib/auth/guest';
+import { useRouter } from 'next/navigation';
 import {
   Flame, Calendar as CalendarIcon, CheckCircle2, Circle, BookOpen,
   Moon, Sun, ChevronRight, Save, HeartPulse, Target, FileText, Trophy,
   Plus, Trash2, CheckSquare, Shuffle, Sparkles, Star, Clock,
-  Download, Upload, RotateCcw, Quote, XCircle, Newspaper, Zap, Info
+  Download, Upload, RotateCcw, Quote, XCircle, Newspaper, Zap, Info, LogOut
 } from 'lucide-react';
 
 type TopicState = { stage: number; notes: string; lastReviewDate: string | null; nextReviewDate: string | null };
@@ -34,7 +38,14 @@ const fadeInUp = {
 const stagger = { animate: { transition: { staggerChildren: 0.05 } } };
 
 export default function TNPSC_Tracker() {
+  const { user, profile, isAdmin, signOut, ready: authReady } = useAuth();
+  const router = useRouter();
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'syllabus' | 'daily' | 'practice' | 'mock'>('dashboard');
+  const [gate, setGate] = useState<'checking' | 'ok' | 'guest-locked' | 'guest-unlock-error'>('checking');
+  const [guestName, setGuestName] = useState<string | null>(null);
+  const [unlockPw, setUnlockPw] = useState('');
+  const [unlockBusy, setUnlockBusy] = useState(false);
   const [mockTab, setMockTab] = useState<'logs' | 'papers'>('papers');
   const [progress, setProgress] = useState<ProgressState>({});
   const [streak, setStreak] = useState(0);
@@ -69,6 +80,26 @@ export default function TNPSC_Tracker() {
   const [onboardWeak, setOnboardWeak] = useState<'A' | 'B' | 'C' | 'none'>('none');
   const [onboardGoal, setOnboardGoal] = useState(3);
   const [onboarding, setOnboarding] = useState<OnboardingData>({ completed: false, examDate: DEFAULT_EXAM_DATE, weakZone: 'none', dailyGoal: 3 });
+
+  useEffect(() => {
+    if (!authReady) return;
+
+    if (user) {
+      clearGuest();
+      setGate('ok');
+      return;
+    }
+
+    const g = readGuest();
+    if (!g) {
+      router.replace('/auth');
+      return;
+    }
+
+    setGuestName(g.username);
+    if (isGuestUnlocked()) setGate('ok');
+    else setGate('guest-locked');
+  }, [authReady, user, router]);
 
   useEffect(() => {
     setProgress(safeParse<ProgressState>(localStorage.getItem('tnpsc_progress_v2'), {}));
@@ -410,7 +441,6 @@ export default function TNPSC_Tracker() {
     return days;
   };
 
-  // ---- DARK MODE: PURE BLACK + BLUE ACCENTS ----
   const bgClass = darkMode
     ? 'bg-black text-gray-100'
     : 'bg-gradient-to-br from-slate-50 via-white to-orange-50/30 text-gray-900';
@@ -422,6 +452,68 @@ export default function TNPSC_Tracker() {
   const inputClass = darkMode
     ? 'bg-white/[0.05] border-white/[0.12] text-white placeholder-gray-500 focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30'
     : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400';
+
+  if (gate === 'checking') {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-gray-400 text-sm">
+        Loading…
+      </div>
+    );
+  }
+
+  if (gate === 'guest-locked' || gate === 'guest-unlock-error') {
+    return (
+      <div className="min-h-screen bg-black text-gray-100 flex items-center justify-center px-4">
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const g = readGuest();
+            if (!g) { router.replace('/auth'); return; }
+            setUnlockBusy(true);
+            const hash = await sha256(unlockPw);
+            if (hash === g.passwordHash) {
+              unlockGuest();
+              setGate('ok');
+            } else {
+              setGate('guest-unlock-error');
+            }
+            setUnlockBusy(false);
+          }}
+          className="w-full max-w-sm rounded-3xl p-6 bg-gradient-to-br from-white/[0.07] to-white/[0.02] backdrop-blur-xl border border-white/[0.12] shadow-2xl space-y-4"
+        >
+          <div className="text-center">
+            <h1 className="text-lg font-bold">Welcome back, {guestName?.toUpperCase()}</h1>
+            <p className="text-xs text-gray-400 mt-1">Enter your guest password to unlock.</p>
+          </div>
+          <input
+            type="password"
+            autoFocus
+            value={unlockPw}
+            onChange={(e) => { setUnlockPw(e.target.value); if (gate === 'guest-unlock-error') setGate('guest-locked'); }}
+            placeholder="Guest password"
+            className="w-full rounded-xl border bg-white/[0.05] border-white/[0.12] text-white placeholder-gray-500 focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30 px-3 py-2.5 text-sm"
+          />
+          {gate === 'guest-unlock-error' && (
+            <p className="text-xs text-red-300">Wrong password.</p>
+          )}
+          <button
+            type="submit"
+            disabled={unlockBusy}
+            className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 disabled:opacity-50"
+          >
+            {unlockBusy ? 'Unlocking…' : 'Unlock'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { clearGuest(); router.replace('/auth'); }}
+            className="w-full text-xs text-gray-400 underline hover:text-gray-200"
+          >
+            Sign in with a real account instead
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen font-sans transition-colors duration-500 ${bgClass} relative overflow-hidden`}>
@@ -576,6 +668,55 @@ export default function TNPSC_Tracker() {
                   </motion.div>
                 </AnimatePresence>
               </motion.button>
+
+              {(profile || guestName) ? (
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    href="/settings"
+                    className={`uppercase text-xs font-semibold px-3 py-1.5 rounded-xl transition ${darkMode ? 'bg-white/10 hover:bg-white/[0.15] text-gray-100' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                    title={profile ? 'Settings' : 'Guest session'}
+                  >
+                    {profile?.username || guestName || ''}
+                  </Link>
+                  {profile && (
+                    <Link
+                      href="/friends"
+                      className={`text-xs font-medium px-2.5 py-1.5 rounded-xl transition ${darkMode ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                      title="Friends"
+                    >
+                      Friends
+                    </Link>
+                  )}
+                  {profile && isAdmin && (
+                    <Link
+                      href="/admin"
+                      className={`text-xs font-bold px-2.5 py-1.5 rounded-xl transition ${darkMode ? 'bg-blue-500/25 hover:bg-blue-500/35 text-blue-200' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+                      title="Admin panel"
+                    >
+                      Admin
+                    </Link>
+                  )}
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={async () => {
+                      if (profile) { await signOut(); }
+                      clearGuest();
+                      router.replace('/auth');
+                    }}
+                    title="Sign out"
+                    className={`p-2 rounded-xl transition ${darkMode ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </motion.button>
+                </div>
+              ) : (
+                <Link
+                  href="/auth"
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition ${darkMode ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-gray-900 hover:bg-black text-white'}`}
+                >
+                  Sign in
+                </Link>
+              )}
             </div>
           </div>
         </nav>

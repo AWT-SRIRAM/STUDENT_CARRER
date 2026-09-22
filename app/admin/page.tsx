@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { RequireAuth } from '@/lib/auth/RequireAuth';
 import { getSupabase } from '@/lib/supabase/client';
+import { ArrowLeft, Users, Shield, User as UserIcon, Trash2, Loader2 } from 'lucide-react';
 
 type UserRow = {
   id: string;
@@ -80,72 +82,119 @@ function AdminInner() {
 
   if (!isAdmin) return null;
 
+  const cardClass =
+    'rounded-2xl bg-gradient-to-br from-white/[0.07] to-white/[0.02] backdrop-blur-xl border border-white/[0.12] p-4';
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Admin</h1>
-          <p className="text-xs text-gray-500">Signed in as {profile?.username}</p>
-        </div>
-        <Link href="/" className="text-sm underline">
-          Back to tracker
-        </Link>
-      </header>
+    <div className="min-h-screen bg-black text-gray-100 relative overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full blur-3xl opacity-25"
+          style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.6) 0%, rgba(59,130,246,0) 70%)' }}
+        />
+        <div
+          className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full blur-3xl opacity-25"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.55) 0%, rgba(99,102,241,0) 70%)' }}
+        />
+      </div>
 
-      <section className="grid grid-cols-3 gap-3">
-        <div className="rounded border border-gray-200 p-3">
-          <p className="text-xs text-gray-500">Total users</p>
-          <p className="text-xl font-semibold">{users.length}</p>
-        </div>
-        <div className="rounded border border-gray-200 p-3">
-          <p className="text-xs text-gray-500">Admins</p>
-          <p className="text-xl font-semibold">{users.filter((u) => u.role === 'admin').length}</p>
-        </div>
-        <div className="rounded border border-gray-200 p-3">
-          <p className="text-xs text-gray-500">Regular users</p>
-          <p className="text-xl font-semibold">{users.filter((u) => u.role === 'user').length}</p>
-        </div>
-      </section>
+      <div className="relative z-10 max-w-3xl mx-auto px-4 py-6 space-y-5">
+        <header className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="p-2 rounded-xl bg-white/[0.05] border border-white/[0.12] hover:bg-white/[0.1] transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold tracking-tight flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-300" /> Admin
+            </h1>
+            <p className="text-xs text-gray-400">Signed in as {profile?.username}</p>
+          </div>
+        </header>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <section className="rounded border border-gray-200">
-        <div className="border-b border-gray-200 px-4 py-2 text-xs font-medium text-gray-500">
-          USERS
+        <div className="grid grid-cols-3 gap-3">
+          <div className={cardClass}>
+            <p className="text-xs text-gray-400">Total users</p>
+            <p className="text-2xl font-bold">{users.length}</p>
+          </div>
+          <div className={cardClass}>
+            <p className="text-xs text-gray-400">Admins</p>
+            <p className="text-2xl font-bold text-blue-300">
+              {users.filter((u) => u.role === 'admin').length}
+            </p>
+          </div>
+          <div className={cardClass}>
+            <p className="text-xs text-gray-400">Regular</p>
+            <p className="text-2xl font-bold">{users.filter((u) => u.role === 'user').length}</p>
+          </div>
         </div>
-        {loading ? (
-          <p className="px-4 py-3 text-sm text-gray-500">Loading…</p>
-        ) : users.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-gray-500">No users.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {users.map((u) => (
-              <li key={u.id} className="flex items-center justify-between px-4 py-2 text-sm">
-                <div>
-                  <span className="font-medium">{u.username}</span>
-                  {u.role === 'admin' && (
-                    <span className="ml-2 rounded bg-gray-900 px-1.5 py-0.5 text-xs text-white">
-                      admin
-                    </span>
+
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="rounded-xl border border-red-500/40 bg-red-500/15 px-3 py-2.5 text-xs text-red-100"
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <section className={cardClass}>
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-300" /> Users
+          </h2>
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading…
+            </div>
+          ) : users.length === 0 ? (
+            <p className="text-xs text-gray-500">No users.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {users.map((u) => (
+                <li
+                  key={u.id}
+                  className="flex items-center justify-between rounded-xl bg-white/[0.04] border border-white/[0.08] px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <UserIcon className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="text-sm font-medium">{u.username}</span>
+                      {u.role === 'admin' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/30 border border-blue-500/50 text-blue-200 font-bold uppercase">
+                          admin
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      joined {new Date(u.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  {u.id !== user?.id && (
+                    <button
+                      onClick={() => onDelete(u.id, u.username)}
+                      disabled={busyId === u.id}
+                      className="text-xs font-semibold text-red-300 hover:text-red-200 disabled:opacity-50 flex items-center gap-1 transition"
+                    >
+                      {busyId === u.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3 h-3" />
+                      )}
+                      Delete
+                    </button>
                   )}
-                  <p className="text-xs text-gray-400">
-                    joined {new Date(u.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                {u.id !== user?.id && (
-                  <button
-                    onClick={() => onDelete(u.id, u.username)}
-                    disabled={busyId === u.id}
-                    className="text-xs text-red-600 underline disabled:opacity-50"
-                  >
-                    {busyId === u.id ? 'Deleting…' : 'Delete'}
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
