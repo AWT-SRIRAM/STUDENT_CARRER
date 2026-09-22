@@ -7,6 +7,7 @@ import AnimatedNumber from '@/components/AnimatedNumber';
 import DailyAffairs from '@/components/DailyAffairs';
 import Practice from '@/components/Practice';
 import PastPapers from '@/components/PastPapers';
+import PracticeQuiz from '@/components/PracticeQuiz';
 import { todayISO, addDays, daysBetween, formatExamDate, safeParse } from '@/lib/utils';
 import {
   Flame, Calendar as CalendarIcon, CheckCircle2, Circle, BookOpen,
@@ -58,6 +59,8 @@ export default function TNPSC_Tracker() {
   const [lockedTopics, setLockedTopics] = useState<Record<string, boolean>>({});
   const [dailyQuote, setDailyQuote] = useState({ text: 'The expert in anything was once a beginner.', author: 'Helen Hayes' });
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [quizTopics, setQuizTopics] = useState<string[]>([]);
   const [examDate, setExamDateState] = useState(DEFAULT_EXAM_DATE);
   const [daysLeftDisplay, setDaysLeftDisplay] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -662,6 +665,25 @@ export default function TNPSC_Tracker() {
                       <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={autoGeneratePlan} className="text-xs bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 py-1.5 rounded-full font-semibold shadow-lg shadow-blue-500/30 flex items-center gap-1"><motion.div animate={{ rotate: [0, 15, -15, 0] }} transition={{ duration: 2, repeat: Infinity, repeatDelay: 0.5 }}><Sparkles className="w-3 h-3" /></motion.div>Smart Generate</motion.button>
                       {todayPlan.length > 1 && (<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={shuffleTodayPlan} className="text-xs bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white px-3 py-1.5 rounded-full font-semibold shadow-lg shadow-violet-500/30 flex items-center gap-1"><Shuffle className="w-3 h-3" /> Shuffle</motion.button>)}
                       {todayPlan.length > 0 && (<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setClearConfirmOpen(true)} className={`text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1 border transition ${darkMode ? 'bg-red-500/25 border-red-500/50 text-red-200 hover:bg-red-500/35' : 'bg-red-500 border-red-500 text-white hover:bg-red-600'}`}><XCircle className="w-3 h-3" /> Clear</motion.button>)}
+                      {todayActions >= onboarding.dailyGoal && todayPlan.length > 0 && (
+  <motion.button
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+    onClick={() => {
+      const topicNames = todayPlan.map((key) => {
+        const [uid, iStr] = key.split('-');
+        const idx = parseInt(iStr);
+        const unit = syllabusData.parts.flatMap((p) => p.units).find((u) => u.id === uid);
+        return unit?.topics[idx] || '';
+      }).filter(Boolean);
+      setQuizTopics(topicNames);
+      setQuizOpen(true);
+    }}
+    className="text-xs bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-3 py-1.5 rounded-full font-semibold shadow-lg shadow-emerald-500/30 flex items-center gap-1"
+  >
+    <Sparkles className="w-3 h-3" /> Take Quiz
+  </motion.button>
+)}
                     </div>
                   </div>
                   {todayPlan.length === 0 ? (
@@ -870,6 +892,15 @@ export default function TNPSC_Tracker() {
         <footer className={`fixed bottom-0 w-full backdrop-blur-2xl border-t p-2 text-center text-xs ${darkMode ? 'bg-black/80 border-white/[0.12] text-gray-300' : 'bg-white/70 border-gray-200/60 text-gray-500'}`}>
           TNPSC Group IV • Exam: {formatExamDate(examDate)}
         </footer>
+                <AnimatePresence>
+          {quizOpen && (
+            <PracticeQuiz
+              topics={quizTopics}
+              darkMode={darkMode}
+              onClose={() => setQuizOpen(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -1,0 +1,63 @@
+[1mdiff --git a/app/page.tsx b/app/page.tsx[m
+[1mindex 6b6e3ef..6192da7 100644[m
+[1m--- a/app/page.tsx[m
+[1m+++ b/app/page.tsx[m
+[36m@@ -7,6 +7,7 @@[m [mimport AnimatedNumber from '@/components/AnimatedNumber';[m
+ import DailyAffairs from '@/components/DailyAffairs';[m
+ import Practice from '@/components/Practice';[m
+ import PastPapers from '@/components/PastPapers';[m
+[32m+[m[32mimport PracticeQuiz from '@/components/PracticeQuiz';[m
+ import { todayISO, addDays, daysBetween, formatExamDate, safeParse } from '@/lib/utils';[m
+ import {[m
+   Flame, Calendar as CalendarIcon, CheckCircle2, Circle, BookOpen,[m
+[36m@@ -58,6 +59,8 @@[m [mexport default function TNPSC_Tracker() {[m
+   const [lockedTopics, setLockedTopics] = useState<Record<string, boolean>>({});[m
+   const [dailyQuote, setDailyQuote] = useState({ text: 'The expert in anything was once a beginner.', author: 'Helen Hayes' });[m
+   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);[m
+[32m+[m[32m  const [quizOpen, setQuizOpen] = useState(false);[m
+[32m+[m[32m  const [quizTopics, setQuizTopics] = useState<string[]>([]);[m
+   const [examDate, setExamDateState] = useState(DEFAULT_EXAM_DATE);[m
+   const [daysLeftDisplay, setDaysLeftDisplay] = useState(0);[m
+   const [showOnboarding, setShowOnboarding] = useState(false);[m
+[36m@@ -662,6 +665,25 @@[m [mexport default function TNPSC_Tracker() {[m
+                       <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={autoGeneratePlan} className="text-xs bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 py-1.5 rounded-full font-semibold shadow-lg shadow-blue-500/30 flex items-center gap-1"><motion.div animate={{ rotate: [0, 15, -15, 0] }} transition={{ duration: 2, repeat: Infinity, repeatDelay: 0.5 }}><Sparkles className="w-3 h-3" /></motion.div>Smart Generate</motion.button>[m
+                       {todayPlan.length > 1 && (<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={shuffleTodayPlan} className="text-xs bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white px-3 py-1.5 rounded-full font-semibold shadow-lg shadow-violet-500/30 flex items-center gap-1"><Shuffle className="w-3 h-3" /> Shuffle</motion.button>)}[m
+                       {todayPlan.length > 0 && (<motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setClearConfirmOpen(true)} className={`text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1 border transition ${darkMode ? 'bg-red-500/25 border-red-500/50 text-red-200 hover:bg-red-500/35' : 'bg-red-500 border-red-500 text-white hover:bg-red-600'}`}><XCircle className="w-3 h-3" /> Clear</motion.button>)}[m
+[32m+[m[32m                      {todayActions >= onboarding.dailyGoal && todayPlan.length > 0 && ([m
+[32m+[m[32m  <motion.button[m
+[32m+[m[32m    whileHover={{ scale: 1.05 }}[m
+[32m+[m[32m    whileTap={{ scale: 0.95 }}[m
+[32m+[m[32m    onClick={() => {[m
+[32m+[m[32m      const topicNames = todayPlan.map((key) => {[m
+[32m+[m[32m        const [uid, iStr] = key.split('-');[m
+[32m+[m[32m        const idx = parseInt(iStr);[m
+[32m+[m[32m        const unit = syllabusData.parts.flatMap((p) => p.units).find((u) => u.id === uid);[m
+[32m+[m[32m        return unit?.topics[idx] || '';[m
+[32m+[m[32m      }).filter(Boolean);[m
+[32m+[m[32m      setQuizTopics(topicNames);[m
+[32m+[m[32m      setQuizOpen(true);[m
+[32m+[m[32m    }}[m
+[32m+[m[32m    className="text-xs bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-3 py-1.5 rounded-full font-semibold shadow-lg shadow-emerald-500/30 flex items-center gap-1"[m
+[32m+[m[32m  >[m
+[32m+[m[32m    <Sparkles className="w-3 h-3" /> Take Quiz[m
+[32m+[m[32m  </motion.button>[m
+[32m+[m[32m)}[m
+                     </div>[m
+                   </div>[m
+                   {todayPlan.length === 0 ? ([m
+[36m@@ -870,6 +892,15 @@[m [mexport default function TNPSC_Tracker() {[m
+         <footer className={`fixed bottom-0 w-full backdrop-blur-2xl border-t p-2 text-center text-xs ${darkMode ? 'bg-black/80 border-white/[0.12] text-gray-300' : 'bg-white/70 border-gray-200/60 text-gray-500'}`}>[m
+           TNPSC Group IV • Exam: {formatExamDate(examDate)}[m
+         </footer>[m
+[32m+[m[32m                <AnimatePresence>[m
+[32m+[m[32m          {quizOpen && ([m
+[32m+[m[32m            <PracticeQuiz[m
+[32m+[m[32m              topics={quizTopics}[m
+[32m+[m[32m              darkMode={darkMode}[m
+[32m+[m[32m              onClose={() => setQuizOpen(false)}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          )}[m
+[32m+[m[32m        </AnimatePresence>[m
+       </div>[m
+     </div>[m
+   );[m
