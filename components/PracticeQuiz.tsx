@@ -20,7 +20,9 @@ type Props = {
 
 export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [questionCount, setQuestionCount] = useState<number>(5);
+  const [quizStarted, setQuizStarted] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -28,7 +30,12 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
   const [finished, setFinished] = useState(false);
   const [source, setSource] = useState<'groq' | 'gemini' | 'none'>('none');
 
-  const loadQuiz = async () => {
+  const startQuiz = (count: number = questionCount) => {
+    setQuizStarted(true);
+    loadQuiz(count);
+  };
+
+  const loadQuiz = async (count: number = questionCount) => {
     setLoading(true);
     setError(null);
     setQuestions([]);
@@ -53,7 +60,7 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ topics, count: 5 }),
+        body: JSON.stringify({ topics, count }),
       });
 
       if (res.status === 401) {
@@ -79,11 +86,6 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadQuiz();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleSelect = (idx: number) => {
     if (selected !== null) return;
@@ -140,8 +142,8 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
             <div>
               <h3 className={`font-bold text-sm ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>Practice Quiz</h3>
               <p className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                {loading ? 'Generating...' : finished ? 'Complete!' : `Question ${current + 1} of ${questions.length}`}
-                {source !== 'none' && !loading && (
+                {!quizStarted ? 'Setup Quiz' : loading ? 'Generating...' : finished ? 'Complete!' : `Question ${current + 1} of ${questions.length}`}
+                {source !== 'none' && !loading && quizStarted && (
                   <span className="ml-2 opacity-70">via {source === 'groq' ? 'Groq' : 'Gemini'}</span>
                 )}
               </p>
@@ -158,6 +160,97 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
 
         {/* Body */}
         <div className="p-5">
+          {/* Step 1: Ask user how many questions to generate */}
+          {!quizStarted && (
+            <div className="space-y-5">
+              <div className="text-center space-y-1">
+                <h4 className={`text-base font-bold ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                  How many questions would you like?
+                </h4>
+                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Select how many multiple-choice questions to generate for this session.
+                </p>
+              </div>
+
+              {/* Quick Choice Buttons */}
+              <div className="grid grid-cols-5 gap-2">
+                {[3, 5, 10, 15, 20].map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setQuestionCount(num)}
+                    className={`py-2.5 rounded-xl font-bold text-sm border transition ${
+                      questionCount === num
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-blue-400 shadow-md shadow-blue-500/25'
+                        : darkMode
+                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
+                        : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {num} Qs
+                  </button>
+                ))}
+              </div>
+
+              {/* Number Stepper Control */}
+              <div className={`p-3 rounded-2xl border flex items-center justify-between ${
+                darkMode ? 'bg-white/[0.04] border-white/[0.08]' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <span className={`text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Custom Question Count:
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setQuestionCount((c) => Math.max(3, c - 1))}
+                    className={`w-8 h-8 rounded-lg font-bold flex items-center justify-center border ${
+                      darkMode ? 'bg-white/5 border-white/10 text-gray-200 hover:bg-white/10' : 'bg-white border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    -
+                  </button>
+                  <span className={`w-8 text-center font-bold text-sm ${darkMode ? 'text-blue-400' : 'text-indigo-600'}`}>
+                    {questionCount}
+                  </span>
+                  <button
+                    onClick={() => setQuestionCount((c) => Math.min(25, c + 1))}
+                    className={`w-8 h-8 rounded-lg font-bold flex items-center justify-center border ${
+                      darkMode ? 'bg-white/5 border-white/10 text-gray-200 hover:bg-white/10' : 'bg-white border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Selected Topics Preview */}
+              <div className="space-y-1.5">
+                <span className={`text-[11px] font-semibold uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Covered Topics ({topics.length}):
+                </span>
+                <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                  {topics.map((t, i) => (
+                    <div
+                      key={i}
+                      className={`text-xs px-2.5 py-1 rounded-lg truncate border ${
+                        darkMode ? 'bg-white/5 border-white/5 text-gray-300' : 'bg-indigo-50/50 border-indigo-100 text-indigo-900'
+                      }`}
+                    >
+                      • {t}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Start Button */}
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => startQuiz(questionCount)}
+                className="w-full bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-bold text-sm shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" /> Start AI Quiz ({questionCount} Questions)
+              </motion.button>
+            </div>
+          )}
           {loading && (
             <div className="text-center py-12">
               <motion.div
@@ -283,18 +376,29 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
                   : score >= questions.length * 0.5 ? '👍 Good effort — keep practicing'
                   : '📚 Review and try again'}
               </p>
-              <div className="flex gap-3">
+              <div className="flex gap-2.5 flex-wrap">
                 <motion.button
                   whileTap={{ scale: 0.97 }}
-                  onClick={loadQuiz}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                  onClick={() => startQuiz(questionCount)}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <RefreshCw className="w-4 h-4" /> New Quiz
+                  <RefreshCw className="w-3.5 h-3.5" /> Retry ({questionCount} Qs)
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setQuizStarted(false)}
+                  className={`flex-1 py-3 rounded-xl font-semibold text-xs border transition ${
+                    darkMode ? 'bg-white/10 border-white/15 text-gray-200 hover:bg-white/20' : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Change Settings
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={onClose}
-                  className={`flex-1 py-3 rounded-xl font-semibold ${darkMode ? 'bg-white/10 text-gray-200 hover:bg-white/15' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`px-4 py-3 rounded-xl font-semibold text-xs border transition ${
+                    darkMode ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}
                 >
                   Done
                 </motion.button>

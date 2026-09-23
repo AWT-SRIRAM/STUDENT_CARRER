@@ -16,7 +16,7 @@ type QuizResponse = {
 // Simple in-memory rate limiter. Resets on deploy / cold start.
 // Good enough to stop casual abuse; not bulletproof.
 const WINDOW_MS = 60_000;      // 1 minute
-const MAX_PER_WINDOW = 3;      // 3 quiz generations per minute per user
+const MAX_PER_WINDOW = 60;     // Generous limit for 2 daily active users (60/min)
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimit(key: string): boolean {
@@ -195,7 +195,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const topics: string[] = Array.isArray(body.topics) ? body.topics.slice(0, 10) : [];
     const count =
-      typeof body.count === 'number' && body.count >= 3 && body.count <= 10 ? body.count : 5;
+      typeof body.count === 'number' && body.count >= 3 && body.count <= 25 ? body.count : 5;
 
     if (topics.length === 0) {
       return NextResponse.json({ questions: [], source: 'none' } as QuizResponse, { status: 400 });

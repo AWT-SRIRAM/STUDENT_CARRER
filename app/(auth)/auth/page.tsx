@@ -5,15 +5,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { validateUsername } from '@/lib/auth/username';
-import { writeGuest } from '@/lib/auth/guest';
-import { Eye, EyeOff, AlertCircle, CheckCircle2, UserPlus, LogIn, UserCircle } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, CheckCircle2, UserPlus, LogIn } from 'lucide-react';
 
-type Tab = 'signin' | 'signup' | 'guest';
+type Tab = 'signin' | 'signup';
 
 function AuthInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get('tab') as Tab) || 'signin';
+  const rawTab = searchParams.get('tab');
+  const initialTab: Tab = rawTab === 'signup' ? 'signup' : 'signin';
   const [tab, setTab] = useState<Tab>(initialTab);
 
   const { signIn } = useAuth();
@@ -28,12 +28,6 @@ function AuthInner() {
   const [suPassword, setSuPassword] = useState('');
   const [suConfirm, setSuConfirm] = useState('');
   const [suShowPw, setSuShowPw] = useState(false);
-
-  // Guest
-  const [gUsername, setGUsername] = useState('');
-  const [gPassword, setGPassword] = useState('');
-  const [gConfirm, setGConfirm] = useState('');
-  const [gShowPw, setGShowPw] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -114,26 +108,6 @@ function AuthInner() {
     }
   }
 
-  async function onGuest(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setInfo(null);
-
-    const u = validateUsername(gUsername);
-    if (!u.ok) return setError(u.error);
-    if (gPassword.length < 4) return setError('Guest password must be at least 4 characters.');
-    if (gPassword !== gConfirm) return setError('Passwords do not match.');
-
-    setBusy(true);
-    try {
-      await writeGuest(u.value, gPassword);
-      router.replace('/');
-    } catch {
-      setError('Could not start guest session.');
-      setBusy(false);
-    }
-  }
-
   const inputClass =
     'mt-1 w-full rounded-xl border bg-white/[0.05] border-white/[0.12] text-white placeholder-gray-500 focus:border-blue-400/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30 px-3 py-2.5 text-sm transition';
   const labelClass = 'block text-xs font-semibold text-gray-300 uppercase tracking-wider';
@@ -142,7 +116,7 @@ function AuthInner() {
     <div className="space-y-5">
       {/* Tab bar */}
       <div className="flex rounded-xl bg-white/[0.05] p-1 text-sm font-medium border border-white/[0.08]">
-        {(['signin', 'signup', 'guest'] as Tab[]).map((t) => (
+        {(['signin', 'signup'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -155,8 +129,7 @@ function AuthInner() {
           >
             {t === 'signin' && <LogIn className="w-4 h-4" />}
             {t === 'signup' && <UserPlus className="w-4 h-4" />}
-            {t === 'guest' && <UserCircle className="w-4 h-4" />}
-            {t === 'signin' ? 'Sign in' : t === 'signup' ? 'Sign up' : 'Guest'}
+            {t === 'signin' ? 'Sign in' : 'Create account'}
           </button>
         ))}
       </div>
@@ -296,83 +269,12 @@ function AuthInner() {
               placeholder="Repeat password"
             />
           </div>
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-            There&apos;s no password reset. Save your password somewhere safe.
-          </div>
           <button
             type="submit"
             disabled={busy}
             className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 hover:opacity-90 disabled:opacity-50 transition"
           >
             {busy ? 'Creating…' : 'Create account'}
-          </button>
-        </motion.form>
-      )}
-
-      {/* GUEST */}
-      {tab === 'guest' && (
-        <motion.form
-          key="guest"
-          initial={{ opacity: 0, x: 8 }}
-          animate={{ opacity: 1, x: 0 }}
-          onSubmit={onGuest}
-          className="space-y-4"
-        >
-          <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-[11px] text-blue-100">
-            Guest mode keeps everything <strong>on this device only</strong>. No account, no sync.
-            Pick any username and password to continue.
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="g-username">Guest username</label>
-            <input
-              id="g-username"
-              autoComplete="off"
-              value={gUsername}
-              onChange={(e) => setGUsername(e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Mathi"
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="g-password">Guest password</label>
-            <div className="relative">
-              <input
-                id="g-password"
-                type={gShowPw ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={gPassword}
-                onChange={(e) => setGPassword(e.target.value)}
-                className={`${inputClass} pr-10`}
-                placeholder="At least 4 characters"
-              />
-              <button
-                type="button"
-                onClick={() => setGShowPw((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-200"
-                tabIndex={-1}
-              >
-                {gShowPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="g-confirm">Confirm password</label>
-            <input
-              id="g-confirm"
-              type={gShowPw ? 'text' : 'password'}
-              autoComplete="new-password"
-              value={gConfirm}
-              onChange={(e) => setGConfirm(e.target.value)}
-              className={inputClass}
-              placeholder="Repeat password"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 hover:opacity-90 disabled:opacity-50 transition"
-          >
-            {busy ? 'Starting…' : 'Continue as guest'}
           </button>
         </motion.form>
       )}

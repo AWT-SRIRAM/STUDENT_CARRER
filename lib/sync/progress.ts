@@ -1,34 +1,16 @@
 'use client';
 
 import { getSupabase } from '@/lib/supabase/client';
+import {
+  readAllSyncable,
+  writeAllSyncable,
+  hasAnyLocalData,
+  type SyncBundle,
+} from './bundle';
 
-/**
- * CHANGE THESE TWO CONSTANTS to match your existing tracker.
- * LOCAL_KEY must be the localStorage key your tracker already uses.
- */
-export const LOCAL_KEY = 'tnpsc-tracker:v1';
 export const DEFAULT_TRACK = 'tnpsc';
 
-export type ProgressBlob = Record<string, unknown>;
-
-function readLocal(): ProgressBlob | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(LOCAL_KEY);
-    return raw ? (JSON.parse(raw) as ProgressBlob) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLocal(data: ProgressBlob) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
-  } catch {
-    /* quota errors are non-fatal */
-  }
-}
+export type ProgressBlob = SyncBundle;
 
 export async function loadServerProgress(
   userId: string,
@@ -68,30 +50,41 @@ export type MigrationResult = {
   data: ProgressBlob | null;
 };
 
+/**
+ * Migration strategy on user sign-in:
+ * 1. If server row has progress data -> Pull from server, overwrite local storage.
+ * 2. If server row is empty AND local data exists -> Push local data up to server.
+ * 3. Otherwise -> No change.
+ */
 export async function migrateLocalStorage(
   userId: string,
   trackId: string = DEFAULT_TRACK,
 ): Promise<MigrationResult> {
-  const local = readLocal();
   const server = await loadServerProgress(userId, trackId);
+  const serverHasData =
+    server &&
+    server.data &&
+    typeof server.data === 'object' &&
+    Object.keys(server.data).length > 0;
 
-  if (!server && local) {
-    await saveServerProgress(userId, local, trackId);
-    return { direction: 'pushed', data: local };
+  if (serverHasData) {
+    writeAllSyncable(server.data);
+    return { direction: 'pulled', data: server.data };
   }
 
-  if (server) {
-    writeLocal(server.data);
-    return { direction: 'pulled', data: server.data };
+  if (hasAnyLocalData()) {
+    const local = readAllSyncable();
+    await saveServerProgress(userId, local, trackId);
+    return { direction: 'pushed', data: local };
   }
 
   return { direction: 'none', data: null };
 }
 
-export function readLocalProgress(): ProgressBlob | null {
-  return readLocal();
+export function readLocalProgress(): ProgressBlob {
+  return readAllSyncable();
 }
 
 export function writeLocalProgress(data: ProgressBlob): void {
-  writeLocal(data);
+  writeAllSyncable(data);
 }
