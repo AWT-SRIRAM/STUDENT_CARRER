@@ -269,7 +269,7 @@ export default function PracticeQuiz({ topics, darkMode, onClose }: Props) {
               <p className={`text-sm mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
               <motion.button
                 whileTap={{ scale: 0.97 }}
-                onClick={loadQuiz}
+                onClick={() => loadQuiz()}
                 className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 mx-auto"
               >
                 <RefreshCw className="w-4 h-4" /> Try Again

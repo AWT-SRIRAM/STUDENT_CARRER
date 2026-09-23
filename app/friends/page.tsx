@@ -186,7 +186,7 @@ function FriendsInner() {
               className="mt-3 divide-y divide-white/[0.08] rounded-2xl bg-black/40 border border-white/[0.08] overflow-hidden"
             >
               {results.map((r) => {
-                const existing = entries.find((e) => e.friendId === r.id);
+                const existing = entries.find((e) => e.userId === r.id);
                 return (
                   <li
                     key={r.id}
